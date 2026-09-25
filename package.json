@@ -17,7 +17,8 @@
     "test:node": "pnpm test",
     "test:browser": "node ./test/fixtures/run-browser-tests.mjs",
     "test:update": "vitest -u",
-    "test:watch": "vitest -w"
+    "test:watch": "vitest -w",
+    "bundle:provenance": "node scripts/bundle-provenance.mjs"
   },
   "keywords": [
     "json",

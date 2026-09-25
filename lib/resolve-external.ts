@@ -184,6 +184,13 @@ async function resolve$Ref<S extends object = JSONSchema, O extends ParserOption
     return Promise.all(promises);
   } catch (err) {
     if (!options?.continueOnError || !isHandledError(err)) {
+      // Fail-fast: still annotate the error with the location of the original $ref,
+      // so callers can trace it back to the reference that caused it.
+      const located = err as { source?: string; path?: unknown } | null;
+      if (located && typeof located === "object" && $refs._$refs[withoutHash]) {
+        located.source = decodeURI(url.stripHash(path));
+        located.path = url.safePointerToPath(url.getHash(path));
+      }
       throw err;
     }
 

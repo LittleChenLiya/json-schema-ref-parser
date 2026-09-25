@@ -13,6 +13,8 @@ export interface InventoryEntry {
   parent: any;
   key: any;
   pathFromRoot: any;
+  sourcePath: string;
+  originalRef: string;
   depth: any;
   file: any;
   hash: any;
@@ -20,6 +22,7 @@ export interface InventoryEntry {
   circular: any;
   extended: any;
   external: any;
+  moved?: boolean;
   nestedResource: boolean;
   indirections: any;
   scopeBase: string;
@@ -28,6 +31,66 @@ export interface InventoryEntry {
   targetResourceBase: string;
   targetResourceId?: string;
 }
+
+/**
+ * Describes a single reference edge that was rewritten while bundling.
+ * Every `$ref` occurrence in the input documents produces exactly one edge,
+ * even when several edges point to the same moved-in node.
+ */
+export interface BundleProvenanceEdge {
+  /** URI of the document that originally contained this `$ref`. */
+  sourceUri: string;
+  /** JSON Pointer of the `$ref` node within its original document. */
+  sourcePointer: string;
+  /** The `$ref` value, exactly as written in the original document. */
+  originalRef: string;
+  /** URI of the document that the `$ref` resolved to. */
+  targetUri: string;
+  /** JSON Pointer of the resolved node within its original document. */
+  targetPointer: string;
+  /** JSON Pointer of this reference edge within the bundled schema. */
+  bundlePointer: string;
+  /** The final `$ref` value in the bundled schema, if the edge is still a `$ref` node. */
+  resolvedRef?: string;
+  /** Whether the referenced node was physically moved into the bundle at this edge. */
+  moved: boolean;
+  /** Whether this edge brought a node in from another document. */
+  external: boolean;
+  /** Whether this edge is directly circular (it references itself). */
+  circular: boolean;
+}
+
+/**
+ * Describes a node that was moved into the bundled document exactly once,
+ * no matter how many reference edges point to it.
+ */
+export interface BundleProvenanceNode {
+  /** URI of the document the node was moved from. */
+  sourceUri: string;
+  /** JSON Pointer of the node within its original document. */
+  sourcePointer: string;
+  /** JSON Pointer of the node within the bundled schema. */
+  bundlePointer: string;
+}
+
+/**
+ * The provenance of a bundled schema: where every moved-in node came from,
+ * and where every rewritten reference edge originally pointed.
+ */
+export interface BundleProvenance {
+  /** One entry per reference edge (`$ref` occurrence) in the input documents. */
+  edges: BundleProvenanceEdge[];
+  /** One entry per node that was moved into the bundled document. */
+  nodes: BundleProvenanceNode[];
+}
+
+/**
+ * Creates an empty {@link BundleProvenance} collector.
+ */
+export function createBundleProvenance(): BundleProvenance {
+  return { edges: [], nodes: [] };
+}
+
 /**
  * Bundles all external JSON references into the main JSON schema, thus resulting in a schema that
  * only has *internal* references, not any *external* references.
@@ -35,10 +98,12 @@ export interface InventoryEntry {
  *
  * @param parser
  * @param options
+ * @param provenance - Optional collector that receives the source/target mapping of every rewritten reference
  */
 function bundle<S extends object = JSONSchema, O extends ParserOptions<S> = ParserOptions<S>>(
   parser: $RefParser<S, O>,
   options: O,
+  provenance?: BundleProvenance,
 ) {
   // console.log('Bundling $ref pointers in %s', parser.$refs._root$Ref.path);
   const rootScopeBase = parser.$refs._root$Ref.dynamicIdScope
@@ -75,6 +140,10 @@ function bundle<S extends object = JSONSchema, O extends ParserOptions<S> = Pars
   const bundleOptions = (options.bundle || {}) as BundleOptions;
   if (bundleOptions.optimizeInternalRefs !== false) {
     fixRefsThroughRefs(inventory, parser.schema as any);
+  }
+
+  if (provenance) {
+    recordProvenance(inventory, provenance);
   }
 }
 
@@ -301,6 +370,8 @@ function inventory$Ref<S extends object = JSONSchema, O extends ParserOptions<S>
     parent: $refParent, // The object that contains this $ref pointer
     key: $refKey, // The key in `parent` that is the $ref pointer
     pathFromRoot, // The path to the $ref pointer, from the JSON Schema root
+    sourcePath: path, // The full URI (with JSON Pointer) of this $ref in its original document
+    originalRef: $ref.$ref, // The $ref value, as written before any re-mapping
     depth, // How far from the JSON Schema root is this $ref pointer?
     file, // The file that the $ref pointer resolves to
     hash, // The hash within `file` that the $ref pointer resolves to
@@ -452,6 +523,7 @@ function remap<S extends object = JSONSchema, O extends ParserOptions<S> = Parse
       // This is the first $ref to point to this value, so dereference the value.
       // Any other $refs that point to the same value will point to this $ref instead
       entry.$ref = entry.parent[entry.key] = $Ref.dereference(entry.$ref, entry.value, options);
+      entry.moved = true;
 
       if (entry.circular) {
         // This $ref points to itself
@@ -642,6 +714,41 @@ function referenceToResource(entry: InventoryEntry): string {
 
 function hasSchemaIdentifier(value: unknown, legacyIdScope = false): boolean {
   return getSchemaId(value, legacyIdScope) !== undefined;
+}
+
+/**
+ * Builds the provenance of a bundle operation from the final inventory.
+ * Must be called after re-mapping, so that every edge reflects the rewritten `$ref` values.
+ */
+function recordProvenance(inventory: InventoryEntry[], provenance: BundleProvenance) {
+  for (const entry of inventory) {
+    const edge: BundleProvenanceEdge = {
+      sourceUri: url.stripHash(entry.sourcePath),
+      sourcePointer: url.getHash(entry.sourcePath),
+      originalRef: entry.originalRef,
+      targetUri: entry.file,
+      targetPointer: entry.hash,
+      bundlePointer: entry.pathFromRoot,
+      moved: entry.moved === true,
+      external: Boolean(entry.external),
+      circular: Boolean(entry.circular),
+    };
+
+    const finalRef = entry.$ref && typeof entry.$ref === "object" ? entry.$ref.$ref : undefined;
+    if (typeof finalRef === "string") {
+      edge.resolvedRef = finalRef;
+    }
+
+    provenance.edges.push(edge);
+
+    if (edge.moved) {
+      provenance.nodes.push({
+        sourceUri: entry.file,
+        sourcePointer: entry.hash,
+        bundlePointer: entry.pathFromRoot,
+      });
+    }
+  }
 }
 
 function containsObject(root: unknown, target: unknown): boolean {

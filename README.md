@@ -56,6 +56,8 @@ JavaScript objects.
   as [custom sources](https://apidevtools.com/json-schema-ref-parser/docs/plugins/resolvers.html) such as databases
 - Can [bundle](https://apidevtools.com/json-schema-ref-parser/docs/ref-parser.html#bundlepath-options-callback) multiple
   files into a single schema that only has _internal_ `$ref` pointers
+- Can [report bundle provenance](docs/bundle-provenance.md), mapping every moved-in node and rewritten
+  `$ref` back to its original document URI and JSON Pointer
 - Can [dereference](https://apidevtools.com/json-schema-ref-parser/docs/ref-parser.html#dereferencepath-options-callback)
   your schema, producing a plain-old JavaScript object that's easy to work with
 - Supports [circular references](https://apidevtools.com/json-schema-ref-parser/docs/#circular-refs), nested references,

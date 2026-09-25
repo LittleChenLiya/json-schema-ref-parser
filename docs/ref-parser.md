@@ -11,6 +11,7 @@ This is the default export of JSON Schema $Ref Parser. You can creates instances
 
 - [`dereference()`](#dereferenceschema-options-callback)
 - [`bundle()`](#bundleschema-options-callback)
+- [`bundleWithProvenance()`](#bundlewithprovenanceschema-options)
 - [`parse()`](#parseschema-options-callback)
 - [`resolve()`](#resolveschema-options-callback)
 
@@ -94,6 +95,43 @@ This also eliminates the risk of [circular references](README.md#circular-refs),
 ```javascript
 let schema = await $RefParser.bundle("my-schema.yaml");
 console.log(schema.definitions.person); // => {$ref: "#/definitions/schemas~1people~1Bruce-Wayne.json"}
+```
+
+### `bundleWithProvenance(schema, [options])`
+
+- **schema** (_required_) - `string` or `object`<br>
+  A JSON Schema object, or the file path or URL of a JSON Schema file. See the [`parse`](#parseschema-options-callback) method for more info.
+
+- **options** (_optional_) - `object`<br>
+  See [options](options.md) for the full list of options
+
+- **Return Value:** `Promise<{schema, provenance}>`<br>
+  Resolves with the bundled schema and its [provenance](bundle-provenance.md)
+
+Bundles all referenced files/URLs into a single schema, exactly like [`bundle()`](#bundleschema-options-callback), and additionally returns the **provenance** of the bundle: for every node that was moved into the bundled document, its original document URI, its original JSON Pointer, and its final JSON Pointer; and for every reference edge (`$ref` occurrence), its original location and its rewritten target. When the same external node is referenced from several places, it is moved into the bundle exactly once, but each reference edge keeps its own source mapping. See [Bundle Provenance](bundle-provenance.md) for the exact format.
+
+`bundleWithProvenance` has two safety-oriented differences from `bundle()`:
+
+- The input schema is **never modified** (`mutateInputSchema` defaults to `false`).
+- Only **caller-provided resolvers** are used. The built-in `file` and `http` resolvers are disabled unless you explicitly configure `options.resolve.file` / `options.resolve.http`, so a relative URI can never silently trigger a filesystem or network read.
+
+Resolution errors are annotated with the URI (`error.source`) and JSON Pointer (`error.path`) of the original `$ref` that caused them.
+
+```javascript
+let { schema, provenance } = await $RefParser.bundleWithProvenance("my-schema.yaml", {
+  resolve: { memory: myInMemoryResolver },
+});
+
+for (let edge of provenance.edges) {
+  console.log(`${edge.sourceUri}${edge.sourcePointer} -> ${edge.bundlePointer} (${edge.resolvedRef})`);
+}
+```
+
+A ready-to-use command prints the reference edges and source locations of a bundle:
+
+```sh
+pnpm bundle:provenance            # runs a built-in in-memory demo
+pnpm bundle:provenance -- schema.json --map mem://shared.json=shared.json
 ```
 
 ### `parse(schema, [options], [callback])`

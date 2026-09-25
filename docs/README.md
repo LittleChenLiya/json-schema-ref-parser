@@ -14,8 +14,11 @@
 - [`$refs` property](ref-parser.md#refs)
 - [`dereference()` method](ref-parser.md#dereferenceschema-options-callback)
 - [`bundle()` method](ref-parser.md#bundleschema-options-callback)
+- [`bundleWithProvenance()` method](ref-parser.md#bundlewithprovenanceschema-options)
 - [`parse()` method](ref-parser.md#parseschema-options-callback)
 - [`resolve()` method](ref-parser.md#resolveschema-options-callback)
+
+#### [Bundle Provenance](bundle-provenance.md)
 
 #### [The `$Refs` class](refs.md)
 
