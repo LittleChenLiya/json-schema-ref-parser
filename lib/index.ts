@@ -479,6 +479,9 @@ export const resolve = $RefParser.resolve;
 export const bundle = $RefParser.bundle;
 export const dereference = $RefParser.dereference;
 
+export { FileAccessDeniedError } from "./util/errors.js";
+export type { FileResolverOptions } from "./types/index.js";
+
 export {
   UnmatchedResolverError,
   JSONParserError,

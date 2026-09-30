@@ -10,6 +10,7 @@ export type JSONParserErrorType =
   | "EUNMATCHEDPARSER"
   | "ETIMEOUT"
   | "ERESOLVER"
+  | "EFILEACCESS"
   | "EUNMATCHEDRESOLVER"
   | "EMISSINGPOINTER"
   | "EINVALIDPOINTER";
@@ -132,6 +133,7 @@ export class JSONParserErrorGroup<
     | JSONParserError
     | InvalidPointerError
     | ResolverError
+    | FileAccessDeniedError
     | ParserError
     | MissingPointerError
     | UnmatchedParserError
@@ -175,6 +177,28 @@ export class UnmatchedResolverError extends JSONParserError {
   name = "UnmatchedResolverError";
   constructor(source: any) {
     super(`Could not find resolver for "${source}"`, source);
+  }
+}
+
+/**
+ * Thrown when the configured file access policy denies a read because the file's final
+ * physical location (after resolving symlinks) is outside every allowed root directory.
+ */
+export class FileAccessDeniedError extends ResolverError {
+  code = "EFILEACCESS" as JSONParserErrorType;
+  name = "FileAccessDeniedError";
+  public readonly allowedRoots: string[];
+  constructor(path: string, allowedRoots: readonly string[], cause?: Error) {
+    const rootList = allowedRoots.map((root) => `"${root}"`).join(", ");
+    const location = allowedRoots.length === 1 ? "the allowed root directory" : "any allowed root directory";
+    super(
+      {
+        message: `Access denied: "${path}" resolves outside of ${location} (${rootList})`,
+      } as Error,
+      path,
+      cause ? { cause } : undefined,
+    );
+    this.allowedRoots = [...allowedRoots];
   }
 }
 

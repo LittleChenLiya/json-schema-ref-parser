@@ -52,6 +52,34 @@ export interface HTTPResolverOptions<S extends object = JSONSchema> extends Part
 }
 
 /**
+ * Options for the built-in filesystem resolver.
+ */
+export interface FileResolverOptions<S extends object = JSONSchema> extends Partial<ResolverOptions<S>> {
+  /**
+   * An allowlist of local directories that external `$ref` pointers may be read from.
+   *
+   * When omitted (or an empty array), filesystem reads are not restricted. When one or
+   * more directories are configured, every file actually opened is resolved relative to
+   * the referencing file, normalized, and followed through symbolic links. The read is
+   * only allowed if the final physical location is equal to, or located underneath, one
+   * of the allowed roots. Reads that escape the roots (for example via `../` or a
+   * symlink that points outside) fail with a {@link FileAccessDeniedError}.
+   *
+   * Pure fragment references (`#/...`) never open a file and are not affected by this
+   * policy.
+   */
+  allowedRoots?: string | string[];
+
+  /**
+   * Overrides how symbolic links are inspected while enforcing {@link allowedRoots}.
+   * This is primarily useful for deterministic tests (for example, simulating links on
+   * platforms where creating real symlinks is unavailable). Production code should leave
+   * this unset so `fs.promises.readlink` is used.
+   */
+  readLink?: (linkPath: string) => Promise<string | undefined> | string | undefined;
+}
+
+/**
  * JSON Schema `$Ref` Parser comes with built-in resolvers for HTTP and HTTPS URLs, as well as local filesystem paths (when running in Node.js). You can add your own custom resolvers to support additional protocols, or even replace any of the built-in resolvers with your own custom implementation.
  *
  * See https://apidevtools.com/json-schema-ref-parser/docs/plugins/resolvers.html

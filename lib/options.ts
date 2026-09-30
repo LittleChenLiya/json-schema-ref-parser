@@ -5,7 +5,14 @@ import binaryParser from "./parsers/binary.js";
 import fileResolver from "./resolvers/file.js";
 import httpResolver from "./resolvers/http.js";
 
-import type { HTTPResolverOptions, JSONSchema, JSONSchemaObject, Plugin, ResolverOptions } from "./types/index.js";
+import type {
+  FileResolverOptions,
+  HTTPResolverOptions,
+  JSONSchema,
+  JSONSchemaObject,
+  Plugin,
+  ResolverOptions,
+} from "./types/index.js";
 
 export type DeepPartial<T> = T extends (...args: never[]) => unknown
   ? T
@@ -163,7 +170,7 @@ export interface $RefParserOptions<S extends object = JSONSchema> {
      */
     external?: boolean;
 
-    file?: Partial<ResolverOptions<S>> | boolean;
+    file?: Partial<FileResolverOptions<S>> | boolean;
     http?: HTTPResolverOptions<S> | boolean;
   } & {
     [key: string]: Partial<ResolverOptions<S>> | HTTPResolverOptions<S> | boolean | undefined;
