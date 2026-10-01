@@ -14,6 +14,7 @@
 - [`$refs` property](ref-parser.md#refs)
 - [`dereference()` method](ref-parser.md#dereferenceschema-options-callback)
 - [`bundle()` method](ref-parser.md#bundleschema-options-callback)
+- [`bundleWithProvenance()` method](ref-parser.md#bundlewithprovenanceschema-options-callback)
 - [`parse()` method](ref-parser.md#parseschema-options-callback)
 - [`resolve()` method](ref-parser.md#resolveschema-options-callback)
 

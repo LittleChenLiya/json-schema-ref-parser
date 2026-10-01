@@ -11,6 +11,7 @@ This is the default export of JSON Schema $Ref Parser. You can creates instances
 
 - [`dereference()`](#dereferenceschema-options-callback)
 - [`bundle()`](#bundleschema-options-callback)
+- [`bundleWithProvenance()`](#bundlewithprovenanceschema-options-callback)
 - [`parse()`](#parseschema-options-callback)
 - [`resolve()`](#resolveschema-options-callback)
 
@@ -94,6 +95,37 @@ This also eliminates the risk of [circular references](README.md#circular-refs),
 ```javascript
 let schema = await $RefParser.bundle("my-schema.yaml");
 console.log(schema.definitions.person); // => {$ref: "#/definitions/schemas~1people~1Bruce-Wayne.json"}
+```
+
+### `bundleWithProvenance(schema, [options], [callback])`
+
+- **schema** (_required_) - `string` or `object`<br>
+  A JSON Schema object, or the file path or URL of a JSON Schema file. See the [`parse`](#parseschema-options-callback) method for more info.
+
+- **options** (_optional_) - `object`<br>
+  See [options](options.md) for the full list of options
+
+- **callback** (_optional_) - `function(err, result)`<br>
+  A callback that will receive a `BundleWithProvenanceResult` object
+
+- **Return Value:** `Promise`<br>
+  Resolves with a `BundleWithProvenanceResult` — `{ schema, provenance }`. See [Callbacks vs. Promises](README.md#callbacks-vs-promises)
+
+Works exactly like [`bundle()`](#bundleschema-options-callback), but additionally returns a **provenance map** that explains how the bundled schema was assembled:
+
+- `provenance.nodes` — one entry per external value that was moved into the bundle. Each entry records the final JSON `pointer` of the moved node, the `sourceUri` of the document it came from, and the original `sourcePointer` within that document. Each external node is moved exactly once, no matter how many references point to it.
+- `provenance.edges` — one entry per `$ref` occurrence. Each edge records its final `pointer` in the bundled schema, the `originalRef` value as written in the input, the `sourceUri`/`sourcePointer` it resolved to, and the rewritten `resolvedRef` target. Duplicate references to the same node each keep their own edge.
+
+The mapping stays accurate when `$id` keywords change the base URI, when embedded resources ("anchors") conflict, and when references are circular. If resolution fails (for example, a missing document), the error's `path` property locates the original `$ref` in the input schema.
+
+See [bundle-provenance.md](bundle-provenance.md) for the full format description.
+
+```javascript
+let { schema, provenance } = await $RefParser.bundleWithProvenance("my-schema.yaml");
+
+for (let edge of provenance.edges) {
+  console.log(`${edge.pointer}: ${edge.originalRef} -> ${edge.sourceUri}${edge.sourcePointer} => ${edge.resolvedRef}`);
+}
 ```
 
 ### `parse(schema, [options], [callback])`

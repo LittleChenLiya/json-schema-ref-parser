@@ -5,6 +5,12 @@ import type { NormalizedArguments } from "./normalize-args.js";
 import resolveExternal from "./resolve-external.js";
 import _bundle from "./bundle.js";
 import _dereference from "./dereference.js";
+import type {
+  BundleProvenance,
+  BundleProvenanceEdge,
+  BundleProvenanceNode,
+  BundleWithProvenanceResult,
+} from "./bundle.js";
 import * as url from "./util/url.js";
 import FileResolver from "./resolvers/file.js";
 import HTTPResolver from "./resolvers/http.js";
@@ -35,6 +41,15 @@ import type {
 import { isUnsafeUrl } from "./util/url.js";
 
 export type RefParserSchema = string | JSONSchema | boolean;
+
+/**
+ * A callback for {@link $RefParser.bundleWithProvenance}. Receives the bundled
+ * schema together with its provenance map.
+ */
+export type BundleWithProvenanceCallback<S extends object = JSONSchema> = (
+  err: Error | null,
+  result?: BundleWithProvenanceResult<S> | null,
+) => any;
 
 /**
  * This class parses a JSON schema, builds a map of its JSON references and their resolved values,
@@ -363,6 +378,118 @@ export class $RefParser<S extends object = JSONSchema, O extends ParserOptions<S
   }
 
   /**
+   * Bundles all referenced files/URLs into a single schema (exactly like {@link bundle}),
+   * and additionally returns a provenance map describing how the bundle was assembled:
+   * every external node that was moved into the bundled schema (with the URI and JSON
+   * Pointer it was moved from) and every reference edge (its original `$ref` value, its
+   * source document and pointer, and its rewritten target in the bundled schema).
+   *
+   * Each external node is moved exactly once, but every reference to it gets its own
+   * edge, so duplicate references can be traced back individually.
+   *
+   * @param schema A JSON Schema object, or the file path or URL of a JSON Schema file. See the `parse` method for more info.
+   * @param options (optional)
+   * @param callback (optional) A callback that will receive a `BundleWithProvenanceResult` object
+   */
+  public static bundleWithProvenance<O extends ParserOptions<JSONSchema> = ParserOptions<JSONSchema>>(
+    schema: boolean,
+    options?: O,
+  ): Promise<BundleWithProvenanceResult<boolean>>;
+  public static bundleWithProvenance<O extends ParserOptions<JSONSchema> = ParserOptions<JSONSchema>>(
+    path: string,
+    schema: boolean,
+    options: O,
+  ): Promise<BundleWithProvenanceResult<boolean>>;
+  public static bundleWithProvenance<S extends object = JSONSchema>(
+    schema: S | string | unknown,
+  ): Promise<BundleWithProvenanceResult<S>>;
+  public static bundleWithProvenance<S extends object = JSONSchema>(
+    schema: S | string | unknown,
+    callback: BundleWithProvenanceCallback<S>,
+  ): Promise<void>;
+  public static bundleWithProvenance<S extends object = JSONSchema, O extends ParserOptions<S> = ParserOptions<S>>(
+    schema: S | string | unknown,
+    options: O,
+  ): Promise<BundleWithProvenanceResult<S>>;
+  public static bundleWithProvenance<S extends object = JSONSchema, O extends ParserOptions<S> = ParserOptions<S>>(
+    schema: S | string | unknown,
+    options: O,
+    callback: BundleWithProvenanceCallback<S>,
+  ): Promise<void>;
+  public static bundleWithProvenance<S extends object = JSONSchema, O extends ParserOptions<S> = ParserOptions<S>>(
+    path: string,
+    schema: S | string | unknown,
+    options: O,
+  ): Promise<BundleWithProvenanceResult<S>>;
+  public static bundleWithProvenance<S extends object = JSONSchema, O extends ParserOptions<S> = ParserOptions<S>>(
+    path: string,
+    schema: S | string | unknown,
+    options: O,
+    callback: BundleWithProvenanceCallback<S>,
+  ): Promise<void>;
+  static bundleWithProvenance<S extends object = JSONSchema, O extends ParserOptions<S> = ParserOptions<S>>():
+    | Promise<BundleWithProvenanceResult<S>>
+    | Promise<BundleWithProvenanceResult<boolean>>
+    | Promise<void> {
+    const instance = new $RefParser<S, O>();
+    return instance.bundleWithProvenance.apply(instance, arguments as any);
+  }
+
+  /**
+   * Bundles all referenced files/URLs into a single schema (exactly like {@link bundle}),
+   * and additionally returns a provenance map describing how the bundle was assembled:
+   * every external node that was moved into the bundled schema (with the URI and JSON
+   * Pointer it was moved from) and every reference edge (its original `$ref` value, its
+   * source document and pointer, and its rewritten target in the bundled schema).
+   *
+   * Each external node is moved exactly once, but every reference to it gets its own
+   * edge, so duplicate references can be traced back individually.
+   *
+   * @param schema A JSON Schema object, or the file path or URL of a JSON Schema file. See the `parse` method for more info.
+   * @param options (optional)
+   * @param callback (optional) A callback that will receive a `BundleWithProvenanceResult` object
+   */
+  public bundleWithProvenance(schema: boolean, options?: O): Promise<BundleWithProvenanceResult<boolean>>;
+  public bundleWithProvenance(path: string, schema: boolean, options: O): Promise<BundleWithProvenanceResult<boolean>>;
+  public bundleWithProvenance(schema: S | string | unknown): Promise<BundleWithProvenanceResult<S>>;
+  public bundleWithProvenance(schema: S | string | unknown, callback: BundleWithProvenanceCallback<S>): Promise<void>;
+  public bundleWithProvenance(schema: S | string | unknown, options: O): Promise<BundleWithProvenanceResult<S>>;
+  public bundleWithProvenance(
+    schema: S | string | unknown,
+    options: O,
+    callback: BundleWithProvenanceCallback<S>,
+  ): Promise<void>;
+  public bundleWithProvenance(
+    path: string,
+    schema: S | string | unknown,
+    options: O,
+  ): Promise<BundleWithProvenanceResult<S>>;
+  public bundleWithProvenance(
+    path: string,
+    schema: S | string | unknown,
+    options: O,
+    callback: BundleWithProvenanceCallback<S>,
+  ): Promise<void>;
+  async bundleWithProvenance(): Promise<BundleWithProvenanceResult<S> | BundleWithProvenanceResult<boolean> | void> {
+    let args: NormalizedArguments<S, O>;
+    try {
+      args = normalizeArgs<S, O>(arguments, false);
+    } catch (err) {
+      return rejectNormalizationError<BundleWithProvenanceResult<S>>(arguments, err);
+    }
+    try {
+      await this.resolve(args.path, args.schema, args.options);
+      const provenance: BundleProvenance = { nodes: [], edges: [] };
+      _bundle<S, O>(this, args.options, provenance);
+      finalize(this);
+      const result: BundleWithProvenanceResult<S> = { schema: this.schema as S, provenance };
+      return maybe(args.callback, Promise.resolve(result)) as Promise<BundleWithProvenanceResult<S> | void>;
+    } catch (err) {
+      return maybe(args.callback, Promise.reject(err)) as Promise<BundleWithProvenanceResult<S> | void>;
+    }
+  }
+
+  /**
    * Dereferences all `$ref` pointers in the JSON Schema, replacing each reference with its resolved value. This results in a schema object that does not contain any `$ref` pointers. Instead, it's a normal JavaScript object tree that can easily be crawled and used just like any other JavaScript object. This is great for programmatic usage, especially when using tools that don't understand JSON references.
    *
    * The dereference method maintains object reference equality, meaning that all `$ref` pointers that point to the same object will be replaced with references to the same object. Again, this is great for programmatic usage, but it does introduce the risk of circular references, so be careful if you intend to serialize the schema using `JSON.stringify()`. Consider using the bundle method instead, which does not create circular references.
@@ -477,9 +604,14 @@ function finalize<S extends object = JSONSchema, O extends ParserOptions<S> = Pa
 export const parse = $RefParser.parse;
 export const resolve = $RefParser.resolve;
 export const bundle = $RefParser.bundle;
+export const bundleWithProvenance = $RefParser.bundleWithProvenance;
 export const dereference = $RefParser.dereference;
 
 export {
+  BundleProvenance,
+  BundleProvenanceEdge,
+  BundleProvenanceNode,
+  BundleWithProvenanceResult,
   UnmatchedResolverError,
   JSONParserError,
   JSONSchema,

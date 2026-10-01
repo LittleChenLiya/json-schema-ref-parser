@@ -183,6 +183,14 @@ async function resolve$Ref<S extends object = JSONSchema, O extends ParserOption
 
     return Promise.all(promises);
   } catch (err) {
+    // Locate the error at the original reference position, so callers can tell
+    // which $ref in their schema caused the failure (e.g. a missing document).
+    if (err && typeof err === "object") {
+      const located = err as { source?: string; path?: Array<string | number> | null };
+      located.source ??= decodeURI(url.stripHash(path));
+      located.path ??= url.safePointerToPath(url.getHash(path));
+    }
+
     if (!options?.continueOnError || !isHandledError(err)) {
       throw err;
     }
