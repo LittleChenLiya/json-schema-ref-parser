@@ -58,6 +58,22 @@ export interface HTTPResolverOptions<S extends object = JSONSchema> extends Part
  */
 export interface ResolverOptions<S extends object = JSONSchema> {
   name?: string;
+
+  /**
+   * An optional file access policy, enforced by the built-in file resolver.
+   *
+   * When set to a non-empty array of directory paths, every file that the file
+   * resolver is about to open is first resolved relative to the schema that
+   * referenced it, then normalized and canonicalized (symbolic links are
+   * resolved). The read only proceeds if the final location is one of the
+   * allowed directories or lies inside one of them. Otherwise a
+   * `ResolverError` is thrown and the file is never opened.
+   *
+   * This also applies to the root schema itself when it is read from disk.
+   * When omitted or empty, no restriction is applied (the default behavior).
+   */
+  allowedPaths?: string[];
+
   /**
    * All resolvers have an order property, even the built-in resolvers. If you don't specify an order property, then your resolver will run last. Specifying `order: 1`, like we did in this example, will make your resolver run first. Or you can squeeze your resolver in-between some of the built-in resolvers. For example, `order: 101` would make it run after the file resolver, but before the HTTP resolver. You can see the order of all the built-in resolvers by looking at their source code.
    *
